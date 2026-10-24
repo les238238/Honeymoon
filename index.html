@@ -156,6 +156,7 @@ nav.bottom button.active{color:var(--accent);font-weight:600}
 .form input[type=text],.form input[type=password],.form input[type=date],.form input[type=time],.form select,.form textarea{
   width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 11px;font-size:15px;color:var(--ink);font-weight:400}
 .form textarea{min-height:80px;resize:vertical}
+.link-row input{width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;font-size:14px;min-width:0}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .check{display:flex!important;align-items:center;gap:8px;grid-template-columns:none!important}
 .picker{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fafaf8;display:grid;gap:8px}
@@ -241,7 +242,7 @@ nav.bottom button.active{color:var(--accent);font-weight:600}
   "subtitle": "PORTUGAL & SPAIN",
   "start": "2027-03-15",
   "end": "2027-03-28",
-  "updatedAt": "2026-10-24T08:37:49.310Z",
+  "updatedAt": "2026-10-24T09:11:32.946Z",
   "gmapsKey": "AIzaSyC0PNLmmEklkGckVqMHOMV4l6BcgqckJmI"
  },
  "days": {
@@ -405,6 +406,13 @@ function gdir(p){
   if (p?.pid) return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(p.name||(p.lat+','+p.lng))}&destination_place_id=${p.pid}`;
   return hasPt(p) ? `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(p?.name||'')}`;
 }
+function itemLinks(i){
+  const out = Array.isArray(i.links) ? i.links.filter(l=>l && l.url) : [];
+  if (i.link && !out.some(l=>l.url===i.link)) out.unshift({label:'링크', url:i.link});   // 예전 형식 호환
+  return out;
+}
+function linkIcon(l){ return /drive\.google|docs\.google|\.pdf(\?|$)|dropbox|바우처|티켓|pdf/i.test(l.url+' '+l.label) ? '📄' : '🔗'; }
+function linkBtns(i){ return itemLinks(i).map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener">${linkIcon(l)} ${esc(l.label||'링크')}</a>`); }
 function linkify(s){ return esc(s).replace(/(\+?\d[\d\- ]{6,}\d)/g, m => `<a href="tel:${m.replace(/[^\d+]/g,'')}">${m}</a>`); }
 
 /* ================= 데이터 불러오기 ================= */
@@ -462,7 +470,7 @@ function itemRow(i, opts={}){
   const links = [];
   if (p && (hasPt(p)||p.name)) { links.push(`<a href="${gmap(p)}" target="_blank" rel="noopener">구글맵</a>`); links.push(`<a href="${gdir(p)}" target="_blank" rel="noopener">길찾기</a>`); }
   if (T.transport && i.to && (hasPt(i.to)||i.to.name)) links.push(`<a href="${gdir(i.to)}" target="_blank" rel="noopener">도착지 길찾기</a>`);
-  if (i.link) links.push(`<a href="${esc(i.link)}" target="_blank" rel="noopener">링크</a>`);
+  links.push(...linkBtns(i));
   return `<div class="it ${opts.next?'next':''}">
     <div class="tm">${esc(i.time||'')}</div>
     <div class="ic" style="background:${T.color}1a">${T.icon}</div>
@@ -552,7 +560,7 @@ function bookCard(i){
   const p = T.transport ? null : i.place;
   const links = [];
   if (p && (hasPt(p)||p.name)) links.push(`<a href="${gdir(p)}" target="_blank" rel="noopener">길찾기</a>`);
-  if (i.link) links.push(`<a href="${esc(i.link)}" target="_blank" rel="noopener">예약 페이지</a>`);
+  links.push(...linkBtns(i));
   return `<div class="card bk"><div class="ic">${T.icon}</div><div class="bd">
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div class="nm">${esc(i.title)}</div>
     ${i.booked?'<span class="chip ok">예약완료</span>':'<span class="chip warn">예약 전</span>'}</div>
@@ -757,7 +765,7 @@ function popupHTML(i, pt){
   return `<div class="pop-t">${esc(i.title)}</div><div class="pop-s">${T.label} · ${i.date?fmtD(i.date):'날짜 미정'} ${esc(i.time||'')}</div>
     ${pt.name&&pt.name!==i.title?`<div class="small">${esc(pt.name)}</div>`:''}
     ${i.memo?`<div class="small" style="white-space:pre-wrap;margin-top:4px">${esc(i.memo)}</div>`:''}
-    <div class="links"><a href="${gmap(pt)}" target="_blank" rel="noopener">구글맵</a><a href="${gdir(pt)}" target="_blank" rel="noopener">길찾기</a></div>`;
+    <div class="links"><a href="${gmap(pt)}" target="_blank" rel="noopener">구글맵</a><a href="${gdir(pt)}" target="_blank" rel="noopener">길찾기</a>${linkBtns(i).join('')}</div>`;
 }
 function isFar(p){ return p.lng > 30 || p.lng < -40; } // 한국 등 이베리아 밖 (화면 맞춤에서 제외)
 function renderMap(){
@@ -1038,14 +1046,18 @@ function openItemForm(id, date){
     <label id="l-enddate"><span id="t-enddate">도착 날짜</span><select id="f-endDate"><option value="">(같은 날)</option>${dates().map(d=>`<option value="${d}" ${it.endDate===d?'selected':''}>${fmtD(d)}</option>`).join('')}</select></label>
     <div id="pk-wrap"></div>
     <label class="check"><input type="checkbox" id="f-booked" ${it.booked?'checked':''}> 예약 완료</label>
-    <div class="row2"><label>예약번호<input type="text" id="f-code" value="${esc(it.code||'')}"></label>
-      <label>링크 (예약 페이지 등)<input type="text" id="f-link" value="${esc(it.link||'')}" placeholder="https://"></label></div>
+    <label>예약번호<input type="text" id="f-code" value="${esc(it.code||'')}"></label>
+    <div><div class="small" style="font-weight:600;color:var(--sub);margin-bottom:4px">링크 · 첨부 (바우처 PDF, 예약 페이지, 메뉴 등)</div>
+      <div id="f-links" style="display:grid;gap:6px"></div>
+      <button type="button" class="btn sm" style="margin-top:6px" onclick="addLinkRow()">+ 링크 추가</button>
+      <datalist id="link-labels"><option value="바우처"><option value="예약 페이지"><option value="티켓"><option value="e-티켓"><option value="메뉴"><option value="홈페이지"><option value="후기"></datalist></div>
     <label>메모<textarea id="f-memo" placeholder="추천 메뉴, 운영시간, 주의사항 등">${esc(it.memo||'')}</textarea></label>
   </div>
   <div class="modal-f">${id?`<button class="btn danger" onclick="closeModal();deleteItem('${id}')" style="margin-right:auto">삭제</button>`:''}
     <button class="btn" onclick="closeModal()">취소</button><button class="btn primary" onclick="submitItem('${id||''}')">완료</button></div>`);
   $('#itemForm')._item = it;
   itemFormType(true);
+  itemLinks(it).forEach(l=>addLinkRow(l));
 }
 function itemFormType(first){
   const it = $('#itemForm')._item;
@@ -1067,13 +1079,30 @@ function itemFormType(first){
   $('#l-time').firstChild.textContent = type==='stay' ? '체크인 시간' : T.transport ? '출발 시간' : '시작 시간';
   $('#l-endtime').firstChild.textContent = type==='stay' ? '체크아웃 시간' : T.transport ? '도착 시간' : '끝 시간 (선택)';
 }
+function addLinkRow(l={}){
+  const row = document.createElement('div');
+  row.className = 'link-row'; row.style.cssText = 'display:grid;grid-template-columns:110px 1fr auto;gap:6px';
+  row.innerHTML = `<input type="text" class="ln-label" list="link-labels" placeholder="이름 (예: 바우처)" value="${esc(l.label||'')}">
+    <input type="text" class="ln-url" placeholder="https:// (구글 드라이브 링크 등)" value="${esc(l.url||'')}">
+    <button type="button" class="btn sm danger" title="삭제">✕</button>`;
+  row.querySelector('button').onclick = () => row.remove();
+  $('#f-links').appendChild(row);
+  if (!l.url) row.querySelector('.ln-label').focus();
+}
+function readLinks(){
+  return [...document.querySelectorAll('#f-links .link-row')].map(r=>{
+    let url = r.querySelector('.ln-url').value.trim(); const label = r.querySelector('.ln-label').value.trim();
+    if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+    return {label: label || '링크', url};
+  }).filter(l=>l.url);
+}
 function submitItem(id){
   const type = $('#f-type').value, T = TYPES[type];
   const title = $('#f-title').value.trim() || (T.transport ? `${pkGet('from')?.name||''} → ${pkGet('to')?.name||''}` : pkGet('place')?.name) || T.label;
   const o = {
     type, title, date: $('#f-date').value, time: $('#f-time').value, endTime: $('#f-endTime').value,
     endDate: (T.transport||type==='stay') ? $('#f-endDate').value : '',
-    booked: $('#f-booked').checked, code: $('#f-code').value.trim(), link: $('#f-link').value.trim(), memo: $('#f-memo').value.trim()
+    booked: $('#f-booked').checked, code: $('#f-code').value.trim(), links: readLinks(), memo: $('#f-memo').value.trim()
   };
   if (type==='stay' && o.date && !o.endDate) { toast('숙소는 체크아웃 날짜를 골라주세요'); return; }
   if (T.transport) { o.from = pkGet('from'); o.to = pkGet('to'); o.place = undefined; }
@@ -1083,7 +1112,7 @@ function submitItem(id){
     it = DATA.items.find(x=>x.id===id);
     const oldDate = it.date;
     const timeChanged = it.time !== o.time || oldDate !== o.date;
-    Object.assign(it, o);
+    Object.assign(it, o); delete it.link;
     for (const k of ['place','from','to']) if (it[k]===undefined) delete it[k];
     if (timeChanged) { it._existing = oldDate===o.date; placeByTime(it); if (oldDate!==o.date) renumber(oldDate); }
   } else {
